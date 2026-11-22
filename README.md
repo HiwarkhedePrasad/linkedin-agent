@@ -39,7 +39,7 @@ npm start              # → http://localhost:3000
 1. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys)
 2. Put it in `.env` as `OPENROUTER_API_KEY`
 
-The default model is `z-ai/glm-5.3-flash` — 1M context, native tool calling, $0.15/M input and $0.50/M output on OpenRouter (cheap, but not `:free`). Change it with `MODEL=`.
+The default is `z-ai/glm-5.3-flash`, locked to the **Relace** provider — the cheapest endpoint for that model on OpenRouter: **$0.0475/M input, $0.0729/M output** (1M context, tool calling). Set `OPENROUTER_PROVIDER=` to empty to let OpenRouter route freely.
 
 > Any `:free` model with tool calling also works. Free models allow **~20 requests/min and 50/day**; a run typically costs 5–15 requests.
 
@@ -99,6 +99,7 @@ UNIPILE_API_URL=https://api.unipile.com
 PUBLIC_URL=https://example.com             # required for hosted auth callbacks
 NOTIFY_SECRET=change-this-to-a-long-random-string
 MODEL=z-ai/glm-5.3-flash
+OPENROUTER_PROVIDER=relace
 MAX_STEPS=20
 PORT=3000
 UNIPILE_BASE_URL=https://api.unipile.com   # optional override

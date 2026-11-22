@@ -13,6 +13,11 @@ import {
 const MODEL = process.env.MODEL || 'z-ai/glm-5.3-flash';
 const MAX_STEPS = Number(process.env.MAX_STEPS) || 20;
 
+// Cheapest endpoint for this model on OpenRouter: Relace.
+// The OpenAI SDK passes unknown body fields through verbatim, so this reaches OpenRouter.
+const PROVIDER = process.env.OPENROUTER_PROVIDER ?? 'relace';
+const routing = PROVIDER ? { provider: { only: [PROVIDER], allow_fallbacks: false } } : {};
+
 /** Built on first use so a missing key is a clear run error, not a boot crash. */
 let client;
 function llm() {
@@ -62,7 +67,7 @@ export async function runAgent(goal, emit) {
 
   // Used only by compaction; the main loop calls create() directly.
   const complete = async (msgs) => {
-    const r = await llm().chat.completions.create({ model: MODEL, messages: msgs });
+    const r = await llm().chat.completions.create({ model: MODEL, messages: msgs, ...routing });
     return r.choices?.[0]?.message?.content || '';
   };
 
@@ -78,7 +83,13 @@ export async function runAgent(goal, emit) {
 
     let res;
     try {
-      res = await llm().chat.completions.create({ model: MODEL, messages, tools: TOOLS, tool_choice: 'auto' });
+      res = await llm().chat.completions.create({
+        model: MODEL,
+        messages,
+        tools: TOOLS,
+        tool_choice: 'auto',
+        ...routing,
+      });
     } catch (err) {
       const hint =
         err?.status === 429
