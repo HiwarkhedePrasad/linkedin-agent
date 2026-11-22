@@ -1,5 +1,6 @@
 node_modules/
 .env
 .memory.jsonl
+.accounts.json
 *.log
 .DS_Store

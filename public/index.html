@@ -30,6 +30,17 @@
   h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
   .model { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 
+  .connect {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 13.5px;
+  }
+  .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: #c8c8c2; margin-right: 9px; vertical-align: 1px;
+  }
+  .dot.on { background: var(--ok); }
+
   .composer {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -104,6 +115,11 @@
     <h1>LinkedIn Agent</h1>
     <span class="model" id="model">free model</span>
   </header>
+
+  <div class="connect">
+    <span><span class="dot" id="dot"></span><span id="connect-text">Checking connection…</span></span>
+    <button id="connect-btn">Connect LinkedIn</button>
+  </div>
 
   <div class="composer">
     <textarea id="goal" placeholder="Give it a goal, e.g. “Find 5 fintech founders in Mumbai and message each of them a short intro.”"></textarea>
@@ -215,11 +231,47 @@ async function run() {
   }
 }
 
+/* ---------------- connection ---------------- */
+async function refreshConnection() {
+  try {
+    const me = await (await fetch('/api/me')).json();
+    $('#dot').className = 'dot' + (me.connected ? ' on' : '');
+    $('#connect-text').textContent = me.connected
+      ? `LinkedIn connected · ${me.account_id}`
+      : 'No LinkedIn account connected';
+    $('#connect-btn').textContent = me.connected ? 'Connect another' : 'Connect LinkedIn';
+  } catch {
+    $('#connect-text').textContent = 'Could not check connection';
+  }
+}
+
+$('#connect-btn').addEventListener('click', async () => {
+  const btn = $('#connect-btn');
+  btn.disabled = true;
+  $('#connect-text').textContent = 'Opening LinkedIn…';
+  try {
+    const r = await fetch('/api/connect', { method: 'POST' });
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    // Full-page redirect — Unipile warns that iframes break LinkedIn captcha.
+    location.href = data.url;
+  } catch (err) {
+    add(`<div class="error">${esc(err.message)}</div>`);
+    refreshConnection();
+    btn.disabled = false;
+  }
+});
+
 $('#run').addEventListener('click', run);
 $('#stop').addEventListener('click', () => ctrl?.abort());
 $('#goal').addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run();
 });
+
+refreshConnection();
+const params = new URLSearchParams(location.search);
+if (params.get('linked') === '1') add('<div class="muted">LinkedIn connected. Ready for a goal.</div>');
+if (params.get('linked') === '0') add('<div class="error">Connection failed — please try again.</div>');
 </script>
 </body>
 </html>

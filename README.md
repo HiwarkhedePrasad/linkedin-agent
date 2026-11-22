@@ -13,6 +13,7 @@ A goal-driven LinkedIn agent. Give it a goal, it plans its own flow and executes
 | `tools.js` | 14 LinkedIn tools — each a one-line wrapper over a prebuilt Unipile SDK call |
 | `agent.js` | The loop: plan → one tool → result → next step → `finish` |
 | `context.js` | Context management — reasoning stripping, eviction, compaction, memory |
+| `accounts.js` | Anonymous user ids, `name → account_id` mapping, per-request context |
 | `server.js` | Tiny HTTP server, streams progress over SSE |
 | `public/index.html` | Minimal UI (goal box + live step log) |
 
@@ -41,6 +42,27 @@ npm start              # → http://localhost:3000
 The default model is `nvidia/nemotron-3-ultra-550b-a55b:free` — free, 1M context, built for agentic tool use. Any `:free` model with tool calling works; change it with `MODEL=`.
 
 > Free models allow **~20 requests/min and 50/day**. A run typically costs 5–15 requests, so budget accordingly.
+
+## Connect LinkedIn from your own site
+
+No Unipile dashboard step needed. Each visitor connects through your own UI:
+
+1. Visitor clicks **Connect LinkedIn** → `POST /api/connect`
+2. Server calls `POST /api/v1/hosted/accounts/link` with `name = <anonymous cookie id>` and returns the hosted URL
+3. Browser full-page-redirects to Unipile's Hosted Auth Wizard — **not an iframe** (LinkedIn captcha breaks in iframes)
+4. Unipile POSTs `/api/unipile/notify?token=…` with `{ status, account_id, name }` → stored in `.accounts.json`
+5. Every tool call in that browser's run uses **that** `account_id`, via `AsyncLocalStorage` — no account id is passed through the 13 tools
+
+**`PUBLIC_URL` must be reachable by Unipile.** `localhost` won't receive the callback. For local testing use a tunnel:
+
+```bash
+npx ngrok http 3000
+# PUBLIC_URL=https://abc123.ngrok-free.app
+```
+
+Set `NOTIFY_SECRET` to a long random string — it travels in the notify URL so random POSTs can't register fake accounts.
+
+To use your own login instead of the anonymous cookie, pass your user id as `name` in `/api/connect` and change `ensureUid()` in `accounts.js`.
 
 ## How the agent behaves
 
@@ -72,11 +94,14 @@ With the defaults, a 20-step run stays around 35K tokens — well inside a free 
 ```env
 UNIPILE_API_KEY=          # required
 OPENROUTER_API_KEY=       # required
-UNIPILE_ACCOUNT_ID=       # optional — auto-detected
+UNIPILE_ACCOUNT_ID=       # optional — forces ONE shared account for everyone
+UNIPILE_API_URL=https://api.unipile.com
+PUBLIC_URL=https://example.com             # required for hosted auth callbacks
+NOTIFY_SECRET=change-this-to-a-long-random-string
 MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
 MAX_STEPS=20
 PORT=3000
-UNIPILE_BASE_URL=https://api.unipile.com   # optional
+UNIPILE_BASE_URL=https://api.unipile.com   # optional override
 
 # Context tuning (rarely needed)
 KEEP_TURNS=4           # tool results kept verbatim before eviction

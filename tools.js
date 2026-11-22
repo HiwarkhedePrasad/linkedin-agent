@@ -1,19 +1,28 @@
 import { UnipileClient } from 'unipile-node-sdk';
+import { accountFor, currentUid } from './accounts.js';
 
 const BASE_URL = process.env.UNIPILE_BASE_URL || 'https://api.unipile.com';
-const client = new UnipileClient(BASE_URL, process.env.UNIPILE_API_KEY);
+export const unipile = new UnipileClient(BASE_URL, process.env.UNIPILE_API_KEY);
+const client = unipile;
 
-/** Resolve (and cache) the LinkedIn account id. */
+/** Resolve the LinkedIn account id for the current browser session. */
 let cachedAccount;
 export async function accountId() {
   if (process.env.UNIPILE_ACCOUNT_ID) return process.env.UNIPILE_ACCOUNT_ID;
+
+  const uid = currentUid();
+  if (uid) {
+    const id = accountFor(uid);
+    if (!id) throw new Error('No LinkedIn account connected for this browser. Click "Connect LinkedIn" first.');
+    return id;
+  }
+
+  // No browser context (CLI / tests) — fall back to the first linked account.
   if (cachedAccount) return cachedAccount;
   const res = await client.account.getAll();
   const items = res?.items ?? [];
   const linkedin = items.find((a) => String(a?.type).toUpperCase() === 'LINKEDIN') || items[0];
-  if (!linkedin) {
-    throw new Error('No account linked in Unipile. Link a LinkedIn account in the Unipile dashboard first.');
-  }
+  if (!linkedin) throw new Error('No account linked in Unipile.');
   cachedAccount = linkedin.id;
   return cachedAccount;
 }
