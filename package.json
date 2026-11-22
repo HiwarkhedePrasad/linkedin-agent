@@ -1,0 +1,15 @@
+{
+  "name": "linkedin-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Goal-driven LinkedIn agent — Unipile API + OpenRouter free model",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "openai": "^5.0.0",
+    "unipile-node-sdk": "^1.9.3"
+  }
+}

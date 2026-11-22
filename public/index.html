@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LinkedIn Agent</title>
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --surface: #ffffff;
+    --ink: #17171a;
+    --muted: #6e6e76;
+    --line: #e7e7e3;
+    --accent: #0a66c2;
+    --ok: #1a7f37;
+    --err: #c0392b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 56px 24px 96px; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+  h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .model { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+  .composer {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  textarea {
+    width: 100%; border: 0; outline: 0; resize: vertical;
+    font: inherit; color: inherit; background: transparent;
+    min-height: 62px;
+  }
+  textarea::placeholder { color: #a5a5ac; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+  .status { font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
+  .status.running { color: var(--accent); }
+  .status.error { color: var(--err); }
+
+  button {
+    font: inherit; font-size: 13.5px; font-weight: 500;
+    padding: 7px 16px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  }
+  button.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:not(:disabled):hover { filter: brightness(.96); }
+
+  #log { margin-top: 34px; display: flex; flex-direction: column; gap: 20px; }
+
+  .step { display: flex; gap: 14px; align-items: baseline; }
+  .step .n {
+    flex: 0 0 26px; height: 20px; line-height: 20px; text-align: center;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
+  }
+  .step .lbl { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+  .thought { white-space: pre-wrap; color: #33333a; }
+
+  .action {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12.5px;
+  }
+  .tool {
+    background: var(--ink); color: #fff; padding: 3px 9px; border-radius: 5px;
+  }
+  .args { color: var(--muted); overflow-wrap: anywhere; }
+
+  details { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  details summary { cursor: pointer; user-select: none; }
+  details pre {
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 7px; padding: 10px 12px; margin: 8px 0 0; max-height: 240px; overflow: auto;
+  }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 2px solid var(--ok); border-radius: 8px; padding: 14px 16px;
+  }
+  .card.blocked { border-left-color: var(--err); }
+  .card .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ok); }
+  .card.blocked .tag { color: var(--err); }
+  .card p { margin: 6px 0 0; }
+
+  .error { color: var(--err); font-size: 14px; }
+  .muted { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>LinkedIn Agent</h1>
+    <span class="model" id="model">free model</span>
+  </header>
+
+  <div class="composer">
+    <textarea id="goal" placeholder="Give it a goal, e.g. “Find 5 fintech founders in Mumbai and message each of them a short intro.”"></textarea>
+    <div class="bar">
+      <span class="status" id="status">idle</span>
+      <span>
+        <button id="stop" disabled>Stop</button>
+        <button id="run" class="primary">Run</button>
+      </span>
+    </div>
+  </div>
+
+  <div id="log"></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const log = $('#log');
+let ctrl = null;
+
+function setStatus(text, cls = '') {
+  const el = $('#status');
+  el.textContent = text;
+  el.className = 'status ' + cls;
+}
+
+function add(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  log.appendChild(div);
+  div.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  return div;
+}
+
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function handle(ev) {
+  switch (ev.type) {
+    case 'step':
+      add(`<div class="step"><span class="n">${ev.n}</span><span class="lbl">step</span></div>`);
+      break;
+    case 'thought':
+      add(`<div class="thought">${esc(ev.text)}</div>`);
+      break;
+    case 'action':
+      add(`<div class="action"><span class="tool">${esc(ev.tool)}</span><span class="args">${esc(JSON.stringify(ev.args))}</span></div>`);
+      break;
+    case 'result':
+      add(`<details><summary>result</summary><pre>${esc(ev.output)}</pre></details>`);
+      break;
+    case 'nudge':
+      add(`<div class="muted">…no action taken, nudging.</div>`);
+      break;
+    case 'done':
+      add(`<div class="card ${ev.status === 'blocked' ? 'blocked' : ''}">
+             <span class="tag">${esc(ev.status || 'complete')}</span>
+             <p>${esc(ev.summary || '')}</p>
+           </div>`);
+      setStatus(ev.status === 'blocked' ? 'blocked' : 'complete');
+      break;
+    case 'error':
+      add(`<div class="error">${esc(ev.text)}</div>`);
+      setStatus('error', 'error');
+      break;
+  }
+}
+
+async function run() {
+  const goal = $('#goal').value.trim();
+  if (!goal) return;
+
+  log.innerHTML = '';
+  $('#run').disabled = true;
+  $('#stop').disabled = false;
+  setStatus('running', 'running');
+
+  ctrl = new AbortController();
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ goal }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const frames = buf.split('\n\n');
+      buf = frames.pop();
+      for (const frame of frames) {
+        const line = frame.split('\n').find((l) => l.startsWith('data: '));
+        if (line) handle(JSON.parse(line.slice(6)));
+      }
+    }
+    if ($('#status').textContent === 'running') setStatus('idle');
+  } catch (err) {
+    if (err.name === 'AbortError') setStatus('stopped');
+    else { add(`<div class="error">${esc(err.message)}</div>`); setStatus('error', 'error'); }
+  } finally {
+    $('#run').disabled = false;
+    $('#stop').disabled = true;
+    ctrl = null;
+  }
+}
+
+$('#run').addEventListener('click', run);
+$('#stop').addEventListener('click', () => ctrl?.abort());
+$('#goal').addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run();
+});
+</script>
+</body>
+</html>
