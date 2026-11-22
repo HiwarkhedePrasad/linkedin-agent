@@ -10,7 +10,7 @@ import {
   memoryBlock,
 } from './context.js';
 
-const MODEL = process.env.MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free';
+const MODEL = process.env.MODEL || 'z-ai/glm-5.3-flash';
 const MAX_STEPS = Number(process.env.MAX_STEPS) || 20;
 
 /** Built on first use so a missing key is a clear run error, not a boot crash. */

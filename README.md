@@ -3,7 +3,7 @@
 A goal-driven LinkedIn agent. Give it a goal, it plans its own flow and executes **one action at a time**, checking its work as it goes.
 
 - **LinkedIn API** — [Unipile](https://unipile.com) (`unipile-node-sdk`)
-- **Reasoning** — [OpenRouter](https://openrouter.ai) free models
+- **Reasoning** — [OpenRouter](https://openrouter.ai) models via the OpenAI SDK
 - **Runtime** — Node.js, no framework, 3 source files
 
 ## Files
@@ -39,9 +39,9 @@ npm start              # → http://localhost:3000
 1. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys)
 2. Put it in `.env` as `OPENROUTER_API_KEY`
 
-The default model is `nvidia/nemotron-3-ultra-550b-a55b:free` — free, 1M context, built for agentic tool use. Any `:free` model with tool calling works; change it with `MODEL=`.
+The default model is `z-ai/glm-5.3-flash` — 1M context, native tool calling, $0.15/M input and $0.50/M output on OpenRouter (cheap, but not `:free`). Change it with `MODEL=`.
 
-> Free models allow **~20 requests/min and 50/day**. A run typically costs 5–15 requests, so budget accordingly.
+> Any `:free` model with tool calling also works. Free models allow **~20 requests/min and 50/day**; a run typically costs 5–15 requests.
 
 ## Connect LinkedIn from your own site
 
@@ -87,7 +87,7 @@ Nothing is hard-blocked and nothing waits for human approval — the flow is dec
 3. **Rolling compaction.** When the transcript passes `COMPACT_AT` tokens, older turns are summarised into one note and dropped. The split point is chosen so an assistant/tool pair is never torn apart (that would break the API request). Costs one extra model call, only when actually needed.
 4. **Cross-run memory.** Finished runs append to `.memory.jsonl`. The next run loads the last few and is told what was already done, so it won't re-message someone or repeat a post.
 
-With the defaults, a 20-step run stays around 35K tokens — well inside a free model's window. Compaction is a safety net for when you raise `MAX_STEPS`.
+With the defaults, a 20-step run stays around 35K tokens — well inside the model's 1M window. Compaction is a safety net for when you raise `MAX_STEPS`.
 
 ## Environment
 
@@ -98,7 +98,7 @@ UNIPILE_ACCOUNT_ID=       # optional — forces ONE shared account for everyone
 UNIPILE_API_URL=https://api.unipile.com
 PUBLIC_URL=https://example.com             # required for hosted auth callbacks
 NOTIFY_SECRET=change-this-to-a-long-random-string
-MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+MODEL=z-ai/glm-5.3-flash
 MAX_STEPS=20
 PORT=3000
 UNIPILE_BASE_URL=https://api.unipile.com   # optional override
